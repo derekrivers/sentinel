@@ -5,6 +5,10 @@ import { pathExists } from '../../utils/fs.js';
 import { runCommand } from '../../utils/process.js';
 import { readNvmrc } from '../git/checkRepos.js';
 
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error';
+}
+
 export async function getDiskUsage(targetPath: string): Promise<number> {
   const { stdout } = await runCommand('df', ['-Pk', targetPath]);
   const lines = stdout.trim().split('\n');
@@ -14,9 +18,10 @@ export async function getDiskUsage(targetPath: string): Promise<number> {
 }
 
 export async function checkDisk(pathToCheck: string, warningPercent: number): Promise<DiskCheckResult> {
-  const usedPercent = await getDiskUsage(pathToCheck);
+  const resolvedPath = pathToCheck || '/';
+  const usedPercent = await getDiskUsage(resolvedPath);
   const status = usedPercent >= 95 ? 'error' : usedPercent >= warningPercent ? 'warn' : 'ok';
-  return { path: pathToCheck, usedPercent, status };
+  return { path: resolvedPath, usedPercent, status };
 }
 
 export async function checkNodeVersions(repos: string[]): Promise<VersionCheckResult[]> {
@@ -49,14 +54,21 @@ export async function checkPnpmVersions(repos: string[]): Promise<VersionCheckRe
 }
 
 export async function checkSystem(repos: string[], diskPath: string, warningPercent: number): Promise<SystemCheckResult> {
-  const [disk, nodeVersions, pnpmVersions] = await Promise.all([
-    checkDisk(diskPath, warningPercent),
+  const [diskResult, nodeResult, pnpmResult] = await Promise.allSettled([
+    checkDisk(diskPath || '/', warningPercent),
     checkNodeVersions(repos),
     checkPnpmVersions(repos)
   ]);
 
+  const disk = diskResult.status === 'fulfilled' ? diskResult.value : null;
+  const nodeVersions = nodeResult.status === 'fulfilled' ? nodeResult.value : [];
+  const pnpmVersions = pnpmResult.status === 'fulfilled' ? pnpmResult.value : [];
+
   const warnings = [
-    ...(disk.status !== 'ok' ? [`Disk usage at ${disk.usedPercent}% for ${disk.path}.`] : []),
+    ...(disk?.status && disk.status !== 'ok' ? [`Disk usage at ${disk.usedPercent}% for ${disk.path}.`] : []),
+    ...(diskResult.status === 'rejected' ? [`Disk check failed: ${formatError(diskResult.reason)}`] : []),
+    ...(nodeResult.status === 'rejected' ? [`Node version check failed: ${formatError(nodeResult.reason)}`] : []),
+    ...(pnpmResult.status === 'rejected' ? [`pnpm version check failed: ${formatError(pnpmResult.reason)}`] : []),
     ...nodeVersions.filter((item) => !item.match).map((item) => `${item.repo} expects Node ${item.expected} but active version is ${item.actual}.`),
     ...pnpmVersions.filter((item) => !item.match).map((item) => `${item.repo} expects pnpm ${item.expected} but active version is ${item.actual}.`)
   ];

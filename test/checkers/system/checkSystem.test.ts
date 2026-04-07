@@ -25,6 +25,12 @@ describe('system checks', () => {
     await expect(checkDisk('/', 80)).resolves.toEqual({ path: '/', usedPercent: 10, status: 'ok' });
   });
 
+  it('defaults disk path to root when omitted', async () => {
+    runCommand.mockResolvedValue({ stdout: 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk 100 10 90 10% /\n', stderr: '' });
+    const { checkDisk } = await import('../../../src/checkers/system/checkSystem.js');
+    await expect(checkDisk('', 80)).resolves.toEqual({ path: '/', usedPercent: 10, status: 'ok' });
+  });
+
   it('reports disk warn', async () => {
     runCommand.mockResolvedValue({ stdout: 'x\ny 100 85 15 85% /\n', stderr: '' });
     const { checkDisk } = await import('../../../src/checkers/system/checkSystem.js');
@@ -82,5 +88,32 @@ describe('system checks', () => {
     readFile.mockResolvedValue(JSON.stringify({ name: 'repo' }));
     const { checkPnpmVersions } = await import('../../../src/checkers/system/checkSystem.js');
     await expect(checkPnpmVersions(['/repo'])).resolves.toEqual([]);
+  });
+
+  it('continues reporting other system checks when one sub-check fails', async () => {
+    runCommand.mockImplementation(async (command: string) => {
+      if (command === 'df') {
+        throw new Error('df failed');
+      }
+      if (command === 'node') {
+        return { stdout: 'v22.0.0\n', stderr: '' };
+      }
+      if (command === 'pnpm') {
+        return { stdout: '9.0.0\n', stderr: '' };
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    readNvmrc.mockResolvedValue('v22.0.0');
+    pathExists.mockResolvedValue(true);
+    readFile.mockResolvedValue(JSON.stringify({ packageManager: 'pnpm@8.0.0' }));
+
+    const { checkSystem } = await import('../../../src/checkers/system/checkSystem.js');
+    const result = await checkSystem(['/repo'], '/', 80);
+
+    expect(result.disk).toBeNull();
+    expect(result.nodeVersions).toEqual([{ repo: '/repo', expected: 'v22.0.0', actual: 'v22.0.0', match: true }]);
+    expect(result.pnpmVersions).toEqual([{ repo: '/repo', expected: '8.0.0', actual: '9.0.0', match: false }]);
+    expect(result.warnings).toContain('Disk check failed: df failed');
+    expect(result.warnings).toContain('/repo expects pnpm 8.0.0 but active version is 9.0.0.');
   });
 });

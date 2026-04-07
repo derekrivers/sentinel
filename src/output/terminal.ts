@@ -29,8 +29,9 @@ export function renderTerminal(result: CheckRunResult): string {
     lines.push('', color.cyan('Services'));
     for (const service of result.services) {
       const icon = service.status === 'up' ? color.green('✓') : color.red('✗');
+      const status = service.status === 'up' ? color.green('up') : color.red('down');
       const latency = service.latencyMs === null ? '' : ` (${service.latencyMs}ms)`;
-      lines.push(`${icon} ${service.name}${latency}`);
+      lines.push(`${icon} ${service.name}: ${status}${latency}`);
     }
   } else {
     lines.push('', renderFailure('Services', result.services));
@@ -40,10 +41,20 @@ export function renderTerminal(result: CheckRunResult): string {
   if ('status' in result.system) {
     lines.push(color.red(`✗ ${result.system.message}`));
   } else {
-    const diskIcon = result.system.disk?.status === 'ok' ? color.green('✓') : result.system.disk?.status === 'warn' ? color.yellow('⚠') : color.red('✗');
-    lines.push(`${diskIcon} Disk ${result.system.disk?.usedPercent}% on ${result.system.disk?.path}`);
-    result.system.nodeVersions.forEach((item) => lines.push(`${item.match ? color.green('✓') : color.yellow('⚠')} Node ${item.repo}: expected ${item.expected}, actual ${item.actual}`));
-    result.system.pnpmVersions.forEach((item) => lines.push(`${item.match ? color.green('✓') : color.yellow('⚠')} pnpm ${item.repo}: expected ${item.expected}, actual ${item.actual}`));
+    if (result.system.disk) {
+      const diskIcon = result.system.disk.status === 'ok' ? color.green('✓') : result.system.disk.status === 'warn' ? color.yellow('⚠') : color.red('✗');
+      const diskStatus = result.system.disk.status === 'ok'
+        ? color.green(result.system.disk.status)
+        : result.system.disk.status === 'warn'
+          ? color.yellow(result.system.disk.status)
+          : color.red(result.system.disk.status);
+      lines.push(`${diskIcon} Disk ${result.system.disk.path}: ${diskStatus} at ${result.system.disk.usedPercent}%`);
+    } else {
+      lines.push(`${color.red('✗')} Disk: ${color.red('unavailable')}`);
+    }
+
+    result.system.nodeVersions.forEach((item) => lines.push(`${item.match ? color.green('✓') : color.yellow('⚠')} Node ${item.repo}: ${item.match ? color.green('match') : color.yellow('mismatch')} (expected ${item.expected}, actual ${item.actual})`));
+    result.system.pnpmVersions.forEach((item) => lines.push(`${item.match ? color.green('✓') : color.yellow('⚠')} pnpm ${item.repo}: ${item.match ? color.green('match') : color.yellow('mismatch')} (expected ${item.expected}, actual ${item.actual})`));
     result.system.warnings.forEach((warning) => lines.push(`  - ${warning}`));
   }
 

@@ -90,6 +90,19 @@ describe('runCheck', () => {
     expect(markdown).toContain('- Overall: warn');
   });
 
+  it('summarizes a system disk failure as an error even when the section returns partial data', async () => {
+    const { summarize } = await import('../../src/commands/check.js');
+    const result = summarize({
+      git: [{ repo: '/repo', status: 'ok', warnings: [] }],
+      services: [{ name: 'db', status: 'up', latencyMs: 10 }],
+      system: { disk: null, nodeVersions: [], pnpmVersions: [], warnings: ['Disk check failed: df failed'] }
+    });
+
+    expect(result.overall).toBe('warn');
+    expect(result.warningCount).toBe(1);
+    expect(result.errorCount).toBe(0);
+  });
+
   it('auto-creates the report directory', async () => {
     vi.resetModules();
     const ensureDir = vi.fn();
