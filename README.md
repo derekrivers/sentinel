@@ -17,7 +17,9 @@ Sentinel loads `~/.sentinel/config.json` on every invocation.
 ```json
 {
   "repos": ["/absolute/path/to/repo"],
-  "services": [{ "name": "Postgres", "host": "127.0.0.1", "port": 5432 }],
+  "services": [
+    { "name": "Postgres", "host": "127.0.0.1", "port": 5432 }
+  ],
   "diskPath": "/",
   "thresholds": {
     "diskWarningPercent": 80,
@@ -26,12 +28,11 @@ Sentinel loads `~/.sentinel/config.json` on every invocation.
 }
 ```
 
-Defaults:
+Defaults applied by the config schema:
 - `repos`: `[]`
 - `services`: `[]`
 - `diskPath`: `/`
-- `thresholds.diskWarningPercent`: `80`
-- `thresholds.branchStaleDays`: `30`
+- `thresholds`: `{ "diskWarningPercent": 80, "branchStaleDays": 30 }`
 
 ## Output
 

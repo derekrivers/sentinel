@@ -16,9 +16,20 @@ export const configSchema = z.object({
 
 export type ConfigInput = z.infer<typeof configSchema>;
 
+function formatIssuePath(path: (string | number)[]): string {
+  if (path.length === 0) {
+    return 'config';
+  }
+
+  return path.reduce<string>((result, segment) => {
+    if (typeof segment === 'number') {
+      return `${result}[${segment}]`;
+    }
+
+    return result ? `${result}.${segment}` : segment;
+  }, '');
+}
+
 export function formatZodIssues(error: z.ZodError): string[] {
-  return error.issues.map((issue) => {
-    const path = issue.path.length ? issue.path.join('.') : 'config';
-    return `${path}: ${issue.message}`;
-  });
+  return error.issues.map((issue) => `${formatIssuePath(issue.path)}: ${issue.message}`);
 }
