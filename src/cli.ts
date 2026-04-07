@@ -1,29 +1,54 @@
 #!/usr/bin/env node
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runCheck } from './commands/check.js';
 import { ConfigError } from './config/loadConfig.js';
 
-async function main(): Promise<void> {
-  const command = process.argv[2];
+const USAGE = [
+  'Usage: sentinel check',
+  '',
+  'Commands:',
+  '  check    Run the Sentinel health checks'
+].join('\n');
 
-  if (command !== 'check') {
-    console.log('Usage: sentinel check');
-    process.exitCode = 1;
-    return;
+export function formatUsage(): string {
+  return USAGE;
+}
+
+export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
+  const [command, ...rest] = argv;
+
+  if (command !== 'check' || rest.length > 0) {
+    console.error(formatUsage());
+    return 1;
   }
 
   try {
-    process.exitCode = await runCheck();
+    return await runCheck();
   } catch (error) {
     if (error instanceof ConfigError) {
       console.error(error.message);
       error.details.forEach((detail) => console.error(`- ${detail}`));
-      process.exitCode = 1;
-      return;
+      return 1;
     }
 
     console.error(error instanceof Error ? error.message : 'Unexpected error');
-    process.exitCode = 2;
+    return 2;
   }
 }
 
-void main();
+function isEntrypoint(argv: string[] = process.argv): boolean {
+  const invokedPath = argv[1];
+
+  if (!invokedPath) {
+    return false;
+  }
+
+  return path.resolve(invokedPath) === fileURLToPath(import.meta.url);
+}
+
+if (isEntrypoint()) {
+  void main().then((exitCode) => {
+    process.exitCode = exitCode;
+  });
+}

@@ -4,6 +4,10 @@ import type { SentinelConfig } from '../types.js';
 import { expandHome, readText } from '../utils/fs.js';
 import { configSchema, formatZodIssues } from './schema.js';
 
+function isMissingFileError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
 export class ConfigError extends Error {
   constructor(message: string, public readonly details: string[] = []) {
     super(message);
@@ -20,8 +24,13 @@ export async function loadConfig(): Promise<SentinelConfig> {
 
   try {
     raw = await readText(configPath);
-  } catch {
-    throw new ConfigError(`No Sentinel config found at ${configPath}. Create ~/.sentinel/config.json to get started.`);
+  } catch (error) {
+    if (isMissingFileError(error)) {
+      throw new ConfigError(`No Sentinel config found at ${configPath}. Create ~/.sentinel/config.json to get started.`);
+    }
+
+    const message = error instanceof Error ? error.message : 'Unknown file read error';
+    throw new ConfigError(`Failed to read ${configPath}.`, [message]);
   }
 
   let parsed: unknown;
