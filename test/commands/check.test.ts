@@ -55,6 +55,14 @@ describe('runCheck', () => {
     await expect(runCheck()).resolves.toBe(2);
   });
 
+  it('treats a down service as an error', async () => {
+    checkRepos.mockResolvedValue([{ repo: '/repo', status: 'ok', warnings: [] }]);
+    checkServices.mockResolvedValue([{ name: 'db', status: 'down', latencyMs: null }]);
+    checkSystem.mockResolvedValue({ disk: { path: '/', usedPercent: 10, status: 'ok' }, nodeVersions: [], pnpmVersions: [], warnings: [] });
+    const { runCheck } = await import('../../src/commands/check.js');
+    await expect(runCheck()).resolves.toBe(2);
+  });
+
   it('runs the checker groups concurrently', async () => {
     checkRepos.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve([{ repo: '/repo', status: 'ok', warnings: [] }]), 30)));
     checkServices.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve([{ name: 'db', status: 'up', latencyMs: 1 }]), 30)));

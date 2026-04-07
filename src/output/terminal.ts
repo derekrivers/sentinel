@@ -7,18 +7,34 @@ const color = {
   cyan: (text: string) => `\u001b[36m${text}\u001b[0m`
 };
 
+function sectionHeading(label: string, status: 'ok' | 'warn' | 'error'): string {
+  const badge = status === 'ok'
+    ? color.green('✓ healthy')
+    : status === 'warn'
+      ? color.yellow('⚠ warning')
+      : color.red('✗ error');
+
+  return `${color.cyan(label)} ${badge}`;
+}
+
 function renderFailure(section: string, failure: SectionFailure): string {
-  return `${color.cyan(section)}\n${color.red(`✗ ${failure.message}`)}`;
+  return `${sectionHeading(section, 'error')}\n${color.red(`✗ ${failure.message}`)}`;
 }
 
 export function renderTerminal(result: CheckRunResult): string {
   const lines: string[] = [];
 
   if (Array.isArray(result.git)) {
-    lines.push(color.cyan('Git'));
+    const gitStatus = result.git.some((repo) => repo.status === 'error')
+      ? 'error'
+      : result.git.some((repo) => repo.status === 'warn')
+        ? 'warn'
+        : 'ok';
+    lines.push(sectionHeading('Git', gitStatus));
     for (const repo of result.git) {
       const icon = repo.status === 'ok' ? color.green('✓') : repo.status === 'warn' ? color.yellow('⚠') : color.red('✗');
-      lines.push(`${icon} ${repo.repo}`);
+      const status = repo.status === 'ok' ? color.green('ok') : repo.status === 'warn' ? color.yellow('warn') : color.red('error');
+      lines.push(`${icon} ${repo.repo}: ${status}`);
       repo.warnings.forEach((warning) => lines.push(`  - ${warning}`));
     }
   } else {
@@ -26,7 +42,8 @@ export function renderTerminal(result: CheckRunResult): string {
   }
 
   if (Array.isArray(result.services)) {
-    lines.push('', color.cyan('Services'));
+    const servicesStatus = result.services.some((service) => service.status === 'down') ? 'error' : 'ok';
+    lines.push('', sectionHeading('Services', servicesStatus));
     for (const service of result.services) {
       const icon = service.status === 'up' ? color.green('✓') : color.red('✗');
       const status = service.status === 'up' ? color.green('up') : color.red('down');
@@ -37,10 +54,17 @@ export function renderTerminal(result: CheckRunResult): string {
     lines.push('', renderFailure('Services', result.services));
   }
 
-  lines.push('', color.cyan('System'));
   if ('status' in result.system) {
-    lines.push(color.red(`✗ ${result.system.message}`));
+    lines.push('', renderFailure('System', result.system));
   } else {
+    const systemStatus = result.system.disk?.status === 'error'
+      ? 'error'
+      : result.system.warnings.length > 0 || result.system.nodeVersions.some((item) => !item.match) || result.system.pnpmVersions.some((item) => !item.match)
+        ? 'warn'
+        : 'ok';
+
+    lines.push('', sectionHeading('System', systemStatus));
+
     if (result.system.disk) {
       const diskIcon = result.system.disk.status === 'ok' ? color.green('✓') : result.system.disk.status === 'warn' ? color.yellow('⚠') : color.red('✗');
       const diskStatus = result.system.disk.status === 'ok'
@@ -50,7 +74,7 @@ export function renderTerminal(result: CheckRunResult): string {
           : color.red(result.system.disk.status);
       lines.push(`${diskIcon} Disk ${result.system.disk.path}: ${diskStatus} at ${result.system.disk.usedPercent}%`);
     } else {
-      lines.push(`${color.red('✗')} Disk: ${color.red('unavailable')}`);
+      lines.push(`${color.yellow('⚠')} Disk: ${color.yellow('unavailable')}`);
     }
 
     result.system.nodeVersions.forEach((item) => lines.push(`${item.match ? color.green('✓') : color.yellow('⚠')} Node ${item.repo}: ${item.match ? color.green('match') : color.yellow('mismatch')} (expected ${item.expected}, actual ${item.actual})`));
@@ -59,10 +83,10 @@ export function renderTerminal(result: CheckRunResult): string {
   }
 
   const overall = result.overall === 'ok'
-    ? color.green('✓ All systems healthy')
+    ? color.green('✓ Overall status: healthy')
     : result.overall === 'warn'
-      ? color.yellow(`⚠ ${result.warningCount} warning(s) found`)
-      : color.red(`✗ ${result.errorCount} error(s) found`);
+      ? color.yellow(`⚠ Overall status: warning (${result.warningCount} warning(s))`)
+      : color.red(`✗ Overall status: error (${result.errorCount} error(s))`);
 
   lines.push('', overall);
   return lines.join('\n');
