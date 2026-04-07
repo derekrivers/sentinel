@@ -1,0 +1,15 @@
+{
+  "repos": [
+    "/Users/example/projects/sentinel",
+    "/Users/example/projects/api"
+  ],
+  "services": [
+    { "name": "Postgres", "host": "127.0.0.1", "port": 5432 },
+    { "name": "Redis", "host": "127.0.0.1", "port": 6379 }
+  ],
+  "diskPath": "/",
+  "thresholds": {
+    "diskWarningPercent": 80,
+    "branchStaleDays": 30
+  }
+}
