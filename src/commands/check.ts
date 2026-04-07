@@ -17,13 +17,23 @@ async function protect<T>(task: () => Promise<T>, label: string): Promise<T | Se
 export function summarize(result: Omit<CheckRunResult, 'warningCount' | 'errorCount' | 'overall'>): CheckRunResult {
   const gitWarnings = Array.isArray(result.git) ? result.git.filter((item) => item.status === 'warn').length : 0;
   const gitErrors = Array.isArray(result.git) ? result.git.filter((item) => item.status === 'error').length : 1;
-  const serviceWarnings = Array.isArray(result.services) ? result.services.filter((item) => item.status === 'down').length : 0;
-  const serviceErrors = Array.isArray(result.services) ? 0 : 1;
-  const systemWarnings = 'warnings' in result.system ? result.system.warnings.length : 0;
-  const systemErrors = 'warnings' in result.system ? (result.system.disk?.status === 'error' ? 1 : 0) : 1;
+
+  const serviceWarnings = 0;
+  const serviceErrors = Array.isArray(result.services)
+    ? result.services.filter((item) => item.status === 'down').length
+    : 1;
+
+  const systemWarnings = 'warnings' in result.system
+    ? result.system.warnings.length + result.system.nodeVersions.filter((item) => !item.match).length + result.system.pnpmVersions.filter((item) => !item.match).length
+    : 0;
+  const systemErrors = 'warnings' in result.system
+    ? (result.system.disk?.status === 'error' ? 1 : 0)
+    : 1;
+
   const warningCount = gitWarnings + serviceWarnings + systemWarnings;
   const errorCount = gitErrors + serviceErrors + systemErrors;
   const overall = errorCount > 0 ? 'error' : warningCount > 0 ? 'warn' : 'ok';
+
   return { ...result, warningCount, errorCount, overall };
 }
 
